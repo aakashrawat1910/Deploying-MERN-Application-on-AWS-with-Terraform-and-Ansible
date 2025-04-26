@@ -1,0 +1,56 @@
+---
+- name: Configure MongoDB Server
+  hosts: db
+  become: yes
+  vars:
+    mongodb_version: "6.0"
+    mongodb_port: 27017
+    mongodb_user: mernuser
+    mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') }}"
+    mongodb_database: merndb
+
+  tasks:
+    - name: Import MongoDB public GPG key
+      apt_key:
+        url: https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc
+        state: present
+
+    - name: Add MongoDB repository
+      apt_repository:
+        repo: deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/{{ mongodb_version }} multiverse
+        state: present
+        filename: mongodb-org-{{ mongodb_version }}
+
+    - name: Install MongoDB
+      apt:
+        name: mongodb-org
+        state: present
+        update_cache: yes
+
+    - name: Configure MongoDB for remote access
+      template:
+        src: templates/mongod.conf.j2
+        dest: /etc/mongod.conf
+      notify: restart mongodb
+
+    - name: Start MongoDB service
+      service:
+        name: mongod
+        state: started
+        enabled: yes
+
+    - name: Create MongoDB user
+      mongodb_user:
+        database: admin
+        name: "{{ mongodb_user }}"
+        password: "{{ mongodb_password }}"
+        roles:
+          - db: "{{ mongodb_database }}"
+            role: dbOwner
+        state: present
+
+  handlers:
+    - name: restart mongodb
+      service:
+        name: mongod
+        state: restarted

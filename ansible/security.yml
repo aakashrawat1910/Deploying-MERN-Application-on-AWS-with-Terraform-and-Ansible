@@ -1,0 +1,60 @@
+---
+- name: Security Hardening
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update all packages
+      apt:
+        upgrade: dist
+        update_cache: yes
+
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+
+    - name: Configure SSH
+      template:
+        src: templates/sshd_config.j2
+        dest: /etc/ssh/sshd_config
+      notify: restart ssh
+
+    - name: Set up UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: 22
+        proto: tcp
+
+    - name: Allow HTTP on web server
+      ufw:
+        rule: allow
+        port: 80
+        proto: tcp
+      when: inventory_hostname in groups['web']
+
+    - name: Allow HTTPS on web server
+      ufw:
+        rule: allow
+        port: 443
+        proto: tcp
+      when: inventory_hostname in groups['web']
+
+    - name: Allow MongoDB from web server only
+      ufw:
+        rule: allow
+        port: 27017
+        proto: tcp
+        from_ip: "{{ hostvars[groups['web'][0]]['ansible_host'] }}"
+      when: inventory_hostname in groups['db']
+
+  handlers:
+    - name: restart ssh
+      service:
+        name: sshd
+        state: restarted

@@ -1,0 +1,90 @@
+---
+- name: Configure Web Server
+  hosts: web
+  become: yes
+  vars:
+    app_directory: /opt/mern-app
+    node_version: "16.x"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Node.js and npm
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }} | bash -
+        apt-get install -y nodejs
+
+    - name: Install Git
+      apt:
+        name: git
+        state: present
+
+    - name: Create application directory
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Clone application repository
+      git:
+        repo: https://github.com/yourusername/mern-app.git
+        dest: "{{ app_directory }}"
+        version: main
+
+    - name: Install frontend dependencies
+      npm:
+        path: "{{ app_directory }}/frontend"
+        state: present
+
+    - name: Install backend dependencies
+      npm:
+        path: "{{ app_directory }}/backend"
+        state: present
+
+    - name: Create environment file for backend
+      copy:
+        dest: "{{ app_directory }}/backend/.env"
+        content: |
+          PORT=3001
+          MONGO_URI=mongodb://mernuser:{{ mongodb_password }}@{{ hostvars['db_server']['ansible_host'] }}:27017/merndb
+
+    - name: Create environment file for frontend
+      copy:
+        dest: "{{ app_directory }}/frontend/.env"
+        content: |
+          REACT_APP_BACKEND_URL=http://{{ ansible_host }}:3001
+
+    - name: Build frontend
+      shell: npm run build
+      args:
+        chdir: "{{ app_directory }}/frontend"
+
+    - name: Install PM2
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Start backend server
+      shell: pm2 start index.js --name backend
+      args:
+        chdir: "{{ app_directory }}/backend"
+
+    - name: Serve frontend with nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Configure nginx
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
