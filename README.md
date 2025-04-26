@@ -31,8 +31,9 @@ This project demonstrates how to deploy a MERN (MongoDB, Express.js, React.js, N
 │   ├── webserver.yml
 │   ├── dbserver.yml
 │   └── security.yml
-├── frontend/
-└── backend/
+├── MERN App/
+│   ├── frontend/
+│   └── backend/
 ```
 
 ## Configuration Steps
